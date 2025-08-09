@@ -13,25 +13,41 @@ class NN:
         # activation_function = "sigmoid", "tanh" , "relu"
         self.sizes = sizes
         self.activation_function = activation_function
-        xavier_limits = self.xavier_init()
-        self.biases = [
-            np.random.uniform(-xavier_limits[k+1], xavier_limits[k+1], (sizes[k+1], 1)) 
-            for k in range(len(sizes)-1)
-            ]
-        # we initialize uniformly the biases between -limit limit, based on Xavier initialization
+        init_limits = self.xavier_init() if self.activation_function != "relu" else self.he_init()
+        if self.activation_function == "relu":
+            self.biases = [np.zeros((sizes[k+1], 1)) for k in range(len(sizes)-1)]
+            # we initialize the biases at 0 for relu
+        else:
+            self.biases = [
+                np.random.uniform(-init_limits[k+1], init_limits[k+1], (sizes[k+1], 1)) 
+                for k in range(len(sizes)-1)
+                ]
+                # we initialize uniformly the biases between -limit limit, based on Xavier initialization (or He)
         self.weights = [
-            np.random.uniform(-xavier_limits[i+1], xavier_limits[i+1], (y, x)) 
+            np.random.uniform(-init_limits[i+1], init_limits[i+1], (y, x)) 
             for i, (x, y) in enumerate(zip(sizes[:-1], sizes[1:]))
             ]
 
     def xavier_init(self):
         #gives the limits for a uniform random to initialize the biases and weights
+        # good for sigmoid and tanh
         res = []
         for k in range(len(self.sizes)):
             if k ==0:
                 res.append(0) #we dont put any biase to the first layer
             else:
                 value = np.sqrt(6/(self.sizes[k]+self.sizes[k-1]))
+                res.append(value)
+        return(res)
+    
+    def he_init(self):
+        # gives the limit with He method (good for Relu)
+        res = []
+        for k in range(len(self.sizes)):
+            if k ==0:
+                res.append(0) #we dont put any biase to the first layer
+            else:
+                value = np.sqrt(6/(self.sizes[k]))
                 res.append(value)
         return(res)
     
@@ -62,7 +78,7 @@ class NN:
         return (1/(1+np.exp(-z)))
     
     def relu(self, z):
-        return (z > 0).astype(float)
+        return np.maximum(0, z)
     
     def tanh(self, z):
         return(np.tanh(z))
@@ -71,7 +87,9 @@ class NN:
         return(self.sigmoid(z)*(1-self.sigmoid(z)))
     
     def relu_prime(self, z):
-        return 0 if z <= 0 else 1
+        z_arr = np.asarray(z)
+        res = (z_arr > 0).astype(float)
+        return res.item() if np.isscalar(z) else res
     
     def tanh_prime(self, z):
         return(1-self.tanh(z)**2)
@@ -144,7 +162,7 @@ class NN:
 
 if __name__ == "__main__":
     #try to learn the AND logic
-    net = NN([2, 3, 1], activation_function="sigmoid") 
+    net = NN([2, 3, 1], activation_function="relu") 
     #entry size: 2,
     #3 layers
     #output: 1
@@ -154,7 +172,7 @@ if __name__ == "__main__":
     (np.array([[1],[0]]), np.array([[0]])),
     (np.array([[1],[1]]), np.array([[1]])),
 ]
-    net.training(training_data, nb_epochs=1000, batch_size=4, learn_rate=0.5)  # training
+    net.training(training_data, nb_epochs=1000, batch_size=4, learn_rate=0.3)  # training
     for x, y in training_data:
         output = net.feedforward(x)
         print(f"Input: {x.ravel()}, Expected: {y.ravel()}, Output: {output.ravel()}")
